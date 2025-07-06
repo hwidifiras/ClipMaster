@@ -12,8 +12,8 @@ const createWindow = () => {
     }
   });
   {
-    console.log("Loading development URL:", "http://localhost:5173");
-    mainWindow.loadURL("http://localhost:5173");
+    console.log("Loading development URL:", "http://localhost:5174");
+    mainWindow.loadURL("http://localhost:5174");
   }
   if (process.env.NODE_ENV === "development") {
     mainWindow.webContents.openDevTools();

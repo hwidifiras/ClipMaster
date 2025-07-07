@@ -30,10 +30,16 @@ import {
   Container,
   Divider,
   ScaleFade,
-  Tooltip
+  Tooltip,
+  Switch,
+  Alert,
+  AlertIcon,
+  AlertTitle,
+  AlertDescription
 } from '@chakra-ui/react'
 import { SearchIcon, StarIcon, DeleteIcon, CopyIcon, SettingsIcon, MoonIcon, SunIcon } from '@chakra-ui/icons'
 import { detectCode } from './utils/codeDetection'
+import { useClipboard } from './hooks/useClipboard'
 
 interface ClipboardItem {
   id: string;
@@ -54,7 +60,6 @@ interface ClipboardListProps {
 }
 
 function App() {
-  const [clipboardHistory, setClipboardHistory] = useState<ClipboardItem[]>([]);
   const [selectedText, setSelectedText] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedItemId, setSelectedItemId] = useState<string | null>(null);
@@ -62,6 +67,46 @@ function App() {
   const { colorMode, toggleColorMode } = useColorMode();
   const bgColor = useColorModeValue('white', 'gray.800');
   const borderColor = useColorModeValue('gray.200', 'gray.700');
+
+  // Use our custom clipboard hook
+  const {
+    isElectron,
+    isMonitoring,
+    history: clipboardHistory,
+    startMonitoring,
+    stopMonitoring,
+    getCurrentClipboard,
+    setClipboard,
+    addToHistory,
+    setHistory: setClipboardHistory
+  } = useClipboard();
+
+  // Setup clipboard change listener
+  useEffect(() => {
+    if (!isElectron) return;
+
+    const cleanup = (window as any).electronAPI?.onClipboardChange((content: string) => {
+      console.log('Clipboard changed, adding to history:', content.substring(0, 50) + '...');
+      addToHistory(content, detectCode);
+      
+      toast({
+        title: "New clipboard content detected",
+        description: content.substring(0, 60) + (content.length > 60 ? '...' : ''),
+        status: "info",
+        duration: 3000,
+        isClosable: true,
+      });
+    });
+
+    return cleanup;
+  }, [isElectron, addToHistory, toast]);
+
+  // Auto-start monitoring when app loads (if in Electron)
+  useEffect(() => {
+    if (isElectron && !isMonitoring) {
+      startMonitoring();
+    }
+  }, [isElectron, isMonitoring, startMonitoring]);
 
   // Keyboard shortcuts
   useEffect(() => {
@@ -91,52 +136,51 @@ function App() {
     return () => document.removeEventListener('keydown', handleKeyDown);
   }, [selectedText]);
 
-  const addToClipboard = useCallback(() => {
+  const addToClipboard = useCallback(async () => {
     if (selectedText.trim()) {
-      const contentType = getContentType(selectedText);
-      const newItem: ClipboardItem = {
-        id: Date.now().toString(),
-        content: selectedText,
-        timestamp: new Date(),
-        isFavorite: false,
-        type: contentType.type,
-        language: contentType.language,
-        confidence: contentType.confidence
-      };
-      setClipboardHistory(prev => [newItem, ...prev.slice(0, 49)]);
-      setSelectedText('');
+      // Add to clipboard system
+      const success = await setClipboard(selectedText);
+      
+      if (success) {
+        // Add to our history
+        addToHistory(selectedText, detectCode);
+        setSelectedText('');
+        
+        toast({
+          title: "Added to clipboard",
+          status: "success",
+          duration: 2000,
+          isClosable: true,
+        });
+      } else {
+        toast({
+          title: "Failed to add to clipboard",
+          status: "error",
+          duration: 2000,
+          isClosable: true,
+        });
+      }
+    }
+  }, [selectedText, setClipboard, addToHistory, toast]);
+
+  const copyToClipboard = async (content: string) => {
+    const success = await setClipboard(content);
+    
+    if (success) {
       toast({
-        title: "Added to clipboard",
+        title: "Copied to clipboard",
         status: "success",
         duration: 2000,
         isClosable: true,
       });
+    } else {
+      toast({
+        title: "Failed to copy",
+        status: "error",
+        duration: 2000,
+        isClosable: true,
+      });
     }
-  }, [selectedText, toast]);
-
-  const getContentType = (content: string): { type: 'text' | 'code' | 'url', language?: string | null, confidence?: number } => {
-    if (content.startsWith('http://') || content.startsWith('https://')) {
-      return { type: 'url' };
-    }
-    const codeDetection = detectCode(content);
-    if (codeDetection.isCode) {
-      return {
-        type: 'code',
-        language: codeDetection.language,
-        confidence: codeDetection.confidence
-      };
-    }
-    return { type: 'text' };
-  };
-
-  const copyToClipboard = (content: string) => {
-    navigator.clipboard.writeText(content);
-    toast({
-      title: "Copied to clipboard",
-      status: "success",
-      duration: 2000,
-      isClosable: true,
-    });
   };
 
   const toggleFavorite = (id: string) => {
@@ -165,6 +209,15 @@ function App() {
     });
   };
 
+  // Handle clipboard monitoring toggle
+  const toggleMonitoring = async () => {
+    if (isMonitoring) {
+      await stopMonitoring();
+    } else {
+      await startMonitoring();
+    }
+  };
+
   const filteredHistory = clipboardHistory.filter(item =>
     item.content.toLowerCase().includes(searchQuery.toLowerCase())
   );
@@ -177,47 +230,82 @@ function App() {
         <VStack spacing={6} p={6}>
           {/* Enhanced Header with better spacing */}
           <Box w="100%" borderBottom="1px" borderColor={borderColor} pb={4}>
-            <HStack w="100%" justify="space-between" align="center">
-              <VStack align="start" spacing={1}>
-                <Heading size="lg" bgGradient="linear(to-r, blue.400, purple.500)" bgClip="text">
-                  ClipMaster
-                </Heading>
-                <Text fontSize="sm" color="gray.500">
-                  Smart Clipboard Manager
-                </Text>
-              </VStack>
-              <HStack spacing={2}>
-                <Tooltip label={`Switch to ${colorMode === 'dark' ? 'light' : 'dark'} mode`}>
-                  <IconButton
-                    aria-label="Toggle dark mode"
-                    icon={colorMode === 'dark' ? <SunIcon /> : <MoonIcon />}
-                    onClick={toggleColorMode}
-                    variant="ghost"
-                    size="md"
-                    transition="all 0.2s"
-                    _hover={{ transform: 'scale(1.05)' }}
-                  />
-                </Tooltip>
-                <Menu>
-                  <Tooltip label="Settings">
-                    <MenuButton
-                      as={IconButton}
-                      aria-label="Settings"
-                      icon={<SettingsIcon />}
+            <VStack spacing={4}>
+              <HStack w="100%" justify="space-between" align="center">
+                <VStack align="start" spacing={1}>
+                  <Heading size="lg" bgGradient="linear(to-r, blue.400, purple.500)" bgClip="text">
+                    ClipMaster
+                  </Heading>
+                  <Text fontSize="sm" color="gray.500">
+                    Smart Clipboard Manager
+                  </Text>
+                </VStack>
+                <HStack spacing={2}>
+                  <Tooltip label={`Switch to ${colorMode === 'dark' ? 'light' : 'dark'} mode`}>
+                    <IconButton
+                      aria-label="Toggle dark mode"
+                      icon={colorMode === 'dark' ? <SunIcon /> : <MoonIcon />}
+                      onClick={toggleColorMode}
                       variant="ghost"
                       size="md"
                       transition="all 0.2s"
                       _hover={{ transform: 'scale(1.05)' }}
                     />
                   </Tooltip>
-                  <MenuList>
-                    <MenuItem onClick={clearHistory} color="red.500">
-                      Clear History
-                    </MenuItem>
-                  </MenuList>
-                </Menu>
+                  <Menu>
+                    <Tooltip label="Settings">
+                      <MenuButton
+                        as={IconButton}
+                        aria-label="Settings"
+                        icon={<SettingsIcon />}
+                        variant="ghost"
+                        size="md"
+                        transition="all 0.2s"
+                        _hover={{ transform: 'scale(1.05)' }}
+                      />
+                    </Tooltip>
+                    <MenuList>
+                      <MenuItem onClick={clearHistory} color="red.500">
+                        Clear History
+                      </MenuItem>
+                    </MenuList>
+                  </Menu>
+                </HStack>
               </HStack>
-            </HStack>
+              
+              {/* Clipboard monitoring status */}
+              {isElectron && (
+                <HStack w="100%" justify="space-between" align="center" p={3} bg={useColorModeValue('gray.50', 'gray.700')} borderRadius="lg">
+                  <HStack spacing={3}>
+                    <Badge colorScheme={isMonitoring ? 'green' : 'gray'} variant="solid">
+                      {isMonitoring ? 'Monitoring Active' : 'Monitoring Inactive'}
+                    </Badge>
+                    <Text fontSize="sm" color="gray.600">
+                      Real-time clipboard detection
+                    </Text>
+                  </HStack>
+                  <Switch
+                    isChecked={isMonitoring}
+                    onChange={toggleMonitoring}
+                    colorScheme="green"
+                    size="md"
+                  />
+                </HStack>
+              )}
+
+              {/* Browser fallback notice */}
+              {!isElectron && (
+                <Alert status="info" borderRadius="lg">
+                  <AlertIcon />
+                  <Box>
+                    <AlertTitle>Browser Mode</AlertTitle>
+                    <AlertDescription>
+                      Running in browser mode. Automatic clipboard monitoring is not available. Use the manual input below.
+                    </AlertDescription>
+                  </Box>
+                </Alert>
+              )}
+            </VStack>
           </Box>
 
         <HStack w="100%" maxW="100%" mx="0" align="start" spacing={6}>

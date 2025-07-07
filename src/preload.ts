@@ -4,10 +4,20 @@
 import { contextBridge, ipcRenderer } from 'electron';
 
 contextBridge.exposeInMainWorld('electronAPI', {
-  // Add your API methods here
+  // Clipboard operations
   getClipboard: () => ipcRenderer.invoke('get-clipboard'),
   setClipboard: (text: string) => ipcRenderer.invoke('set-clipboard', text),
+  
+  // Clipboard monitoring
+  startClipboardMonitoring: () => ipcRenderer.invoke('start-clipboard-monitoring'),
+  stopClipboardMonitoring: () => ipcRenderer.invoke('stop-clipboard-monitoring'),
+  
+  // Listen for clipboard changes
   onClipboardChange: (callback: (text: string) => void) => {
-    ipcRenderer.on('clipboard-change', (_, text) => callback(text));
+    const listener = (_event: any, text: string) => callback(text);
+    ipcRenderer.on('clipboard-change', listener);
+    
+    // Return cleanup function
+    return () => ipcRenderer.removeListener('clipboard-change', listener);
   }
 });

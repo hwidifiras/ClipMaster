@@ -226,8 +226,8 @@ function App() {
 
   return (
     <Box w="100vw" maxW="100vw" overflowX="hidden" minH="100vh" bg={bgColor}>
-      <Container maxW="container.xl" p={0}>
-        <VStack spacing={6} p={6}>
+      <Container maxW="container.xl" p={4}>
+        <VStack spacing={4} align="stretch">
           {/* Enhanced Header with better spacing */}
           <Box w="100%" borderBottom="1px" borderColor={borderColor} pb={4}>
             <VStack spacing={4}>
@@ -250,6 +250,18 @@ function App() {
                       size="md"
                       transition="all 0.2s"
                       _hover={{ transform: 'scale(1.05)' }}
+                    />
+                  </Tooltip>
+                  <Tooltip label="Clear clipboard history">
+                    <IconButton
+                      aria-label="Clear history"
+                      icon={<DeleteIcon />}
+                      onClick={clearHistory}
+                      variant="ghost"
+                      size="md"
+                      colorScheme="red"
+                      transition="all 0.2s"
+                      _hover={{ transform: 'scale(1.05)', color: 'red.500' }}
                     />
                   </Tooltip>
                   <Menu>

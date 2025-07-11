@@ -145,6 +145,34 @@ export const useClipboard = () => {
     return newItem;
   }, []);
 
+  // Clear clipboard history
+  const clearHistory = useCallback(async () => {
+    if (!isElectron) return false;
+    
+    try {
+      await window.electronAPI.clearClipboardHistory();
+      setHistory([]);
+      
+      toast({
+        title: "Clipboard history cleared",
+        status: "info",
+        duration: 2000,
+        isClosable: true,
+      });
+      
+      return true;
+    } catch (error) {
+      console.error('Failed to clear clipboard history:', error);
+      toast({
+        title: "Failed to clear history",
+        status: "error",
+        duration: 3000,
+        isClosable: true,
+      });
+      return false;
+    }
+  }, [isElectron, toast]);
+
   // Setup clipboard change listener
   useEffect(() => {
     if (!isElectron) return;
@@ -167,6 +195,7 @@ export const useClipboard = () => {
     getCurrentClipboard,
     setClipboard,
     addToHistory,
-    setHistory
+    setHistory,
+    clearHistory
   };
 };

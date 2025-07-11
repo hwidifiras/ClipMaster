@@ -62,6 +62,11 @@ const createWindow = (): void => {
     return true;
   });
 
+  ipcMain.handle('clear-clipboard-history', () => {
+    lastClipboardContent = '';
+    return true;
+  });
+
   ipcMain.handle('start-clipboard-monitoring', () => {
     startClipboardMonitoring();
     return true;

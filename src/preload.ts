@@ -7,6 +7,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // Clipboard operations
   getClipboard: () => ipcRenderer.invoke('get-clipboard'),
   setClipboard: (text: string) => ipcRenderer.invoke('set-clipboard', text),
+  clearClipboardHistory: () => ipcRenderer.invoke('clear-clipboard-history'),
   
   // Clipboard monitoring
   startClipboardMonitoring: () => ipcRenderer.invoke('start-clipboard-monitoring'),
